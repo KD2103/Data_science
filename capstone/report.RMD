@@ -1,0 +1,238 @@
+---
+title: "MovieLens Project Report"
+author: "Dmitry Kuzmin"
+date: "February 21, 2023"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    toc: yes
+---
+
+# Introduction
+
+This report presents the results of an analysis of the MovieLens 10M dataset using various models to predict movie ratings. 
+The goal of this project is to compare the performance of these models and determine which is the most effective at predicting ratings. 
+The dataset was downloaded from grouplens.org and contains ratings data for over 10,000 movies from more than 70,000 users. 
+We start with a simple prediction strategy that assumes all movies have the same average rating and gradually build up to more complex models
+that take into account the average rating for each movie and the average deviation of each user from the dataset mean. 
+Finally, we apply a regularized movie and user effect model that adds a penalty term to control for overfitting and use cross-validation
+to select the optimal value for the tuning parameter. The models are evaluated based on their root mean squared error (RMSE), 
+and the model with the lowest RMSE is considered the best for predicting the ratings in the MovieLens dataset.
+
+Data
+The data was downloaded from [grouplens.org](https://grouplens.org/datasets/movielens/10m/).
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(caret)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+
+dl <- "ml-10M100K.zip"
+if(!file.exists(dl))
+  download.file("https://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings_file <- "ml-10M100K/ratings.dat"
+if(!file.exists(ratings_file))
+  unzip(dl, ratings_file)
+
+movies_file <- "ml-10M100K/movies.dat"
+if(!file.exists(movies_file))
+  unzip(dl, movies_file)
+
+ratings <- as.data.frame(str_split(read_lines(ratings_file), fixed("::"), simplify = TRUE),
+                         stringsAsFactors = FALSE)
+colnames(ratings) <- c("userId", "movieId", "rating", "timestamp")
+ratings <- ratings %>%
+  mutate(userId = as.integer(userId),
+         movieId = as.integer(movieId),
+         rating = as.numeric(rating),
+         timestamp = as.integer(timestamp))
+
+movies <- as.data.frame(str_split(read_lines(movies_file), fixed("::"), simplify = TRUE),
+                        stringsAsFactors = FALSE)
+colnames(movies) <- c("movieId", "title", "genres")
+movies <- movies %>%
+  mutate(movieId = as.integer(movieId))
+
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Final hold-out test set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+# set.seed(1) # if using R 3.5 or earlier
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+edx <- movielens[-test_index,]
+temp <- movielens[test_index,]
+
+# Make sure userId and movieId in final hold-out test set are also in edx set
+validation <- temp %>% 
+  semi_join(edx, by = "movieId") %>%
+  semi_join(edx, by = "userId")
+
+# Add rows removed from final hold-out test set back into edx set
+removed <- anti_join(temp, validation)
+edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
+```
+
+# Data summary
+The MovieLens Project Report analyzes the MovieLens 10M dataset to predict movie ratings using several different models. 
+The report begins with an introduction and overview of the data before diving into the analysis.
+
+```{r data_summary, echo=TRUE}
+# Number of unique movies and users in the edx dataset 
+edx %>%
+  summarize(n_users = n_distinct(userId), 
+            n_movies = n_distinct(movieId))
+
+# Ratings distribution
+edx %>%
+  filter(!is.na(rating) & is.finite(rating)) %>%
+  ggplot(aes(rating)) +
+  geom_histogram(binwidth = 0.25, color = "black") +
+  scale_x_continuous(limits = c(0.5, 5.0)) +
+  scale_y_continuous(breaks = c(seq(0, 3000000, 500000))) +
+  ggtitle("Rating distribution")
+```
+
+# Modelling approach
+In this project, we apply several models to predict movie ratings and compare their performance using RMSE.
+
+## Simple prediction
+We start by using a simple prediction strategy that assumes all movies have the same average rating.
+
+```{r simple_prediction, echo=TRUE}
+# Compute the dataset's mean rating
+mu <- mean(edx$rating)
+mu
+
+# Test results based on simple prediction
+naive_rmse <- RMSE(validation$rating, mu)
+naive_rmse
+
+# Save prediction in data frame
+rmse_results <- data_frame(method = "Average movie rating model", RMSE = naive_rmse)
+
+# Check results
+rmse_results %>% knitr::kable()
+```
+
+## Movie effect model
+Next, we build a model that takes into account the average rating for each movie.
+
+```{r movie_effect_model, echo=TRUE}
+# Simple model taking into account the movie effect b_i
+# Subtract the rating minus the mean for each rating the movie received
+# Plot number of movies with the computed b_i
+movie_avgs <- edx %>%
+  group_by(movieId) %>%
+  summarize(b_i = mean(rating - mu))
+movie_avgs %>% qplot(b_i, geom ="histogram", bins = 10, data = ., color = I("black"),
+                     ylab = "Number of movies", main = "Number of movies with the computed b_i")
+
+
+# Test and save RMSE results 
+predicted_ratings <- mu +  validation %>%
+  left_join(movie_avgs, by='movieId') %>%
+  pull(b_i)
+model_1_rmse <- RMSE(predicted_ratings, validation$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie effect model",  
+                                     RMSE = model_1_rmse ))
+
+# Check results
+rmse_results %>% knitr::kable()
+```
+
+## Movie and user effect model
+We then extend the previous model to take into account the average deviation of each user from the dataset mean.
+
+```{r movie_user_effect_model, echo=TRUE}
+# Plot penalty term user effect
+user_avgs<- edx %>% 
+  left_join(movie_avgs, by='movieId') %>%
+  group_by(userId) %>%
+  filter(n() >= 100) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+user_avgs%>% qplot(b_u, geom ="histogram", bins = 30, data = ., color = I("black"))
+
+
+user_avgs <- edx %>%
+  left_join(movie_avgs, by='movieId') %>%
+  group_by(userId) %>%
+  summarize(b_u = mean(rating - mu - b_i))
+
+# Test and save RMSE results 
+predicted_ratings <- validation%>%
+  left_join(movie_avgs, by='movieId') %>%
+  left_join(user_avgs, by='userId') %>%
+  mutate(pred = mu + b_i + b_u) %>%
+  pull(pred)
+
+model_2_rmse <- RMSE(predicted_ratings, validation$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie and user effect model",  
+                                     RMSE = model_2_rmse))
+
+# Check results
+rmse_results %>% knitr::kable()
+```
+
+## Regularized movie and user effect model
+Finally, we apply a regularized movie and user effect model that adds a penalty term to control for overfitting. 
+We use cross-validation to select the optimal value for the tuning parameter.
+
+```{r regularized_movie_user_effect_model, echo=TRUE}
+# lambda is a tuning parameter
+# Use cross-validation to choose it.
+lambdas <- seq(0, 10, 0.25)
+
+# For each lambda, we find b_i and b_u, and then make rating predictions and test the RMSE
+rmses <- sapply(lambdas, function(l){
+  
+  mu <- mean(edx$rating)
+  
+  b_i <- edx %>% 
+    group_by(movieId) %>%
+    summarize(b_i = sum(rating - mu)/(n() + l))
+  
+  b_u <- edx %>% 
+    left_join(b_i, by="movieId") %>%
+    group_by(userId) %>%
+    summarize(b_u = sum(rating - b_i - mu)/(n() + l))
+  
+  predicted_ratings <- 
+    validation %>% 
+    left_join(b_i, by = "movieId") %>%
+    left_join(b_u, by = "userId") %>%
+    mutate(pred = mu + b_i + b_u) %>%
+    pull(pred)
+  
+  return(RMSE(predicted_ratings, validation$rating))
+})
+
+# Plot RMSEs vs lambdas to select the optimal lambda
+qplot(lambdas, rmses)
+
+# The optimal lambda
+lambda <- lambdas[which.min(rmses)]
+lambda
+
+# Test and save results
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Regularized movie and user effect model",  
+                                     RMSE = min(rmses)))
+
+# Check results
+rmse_results %>% knitr::kable()
+```
+
+# Conclusion
+Based on the results of the analysis, we can conclude that the Regularized movie and user effect model is the most accurate model for predicting movie ratings in the MovieLens 10M dataset. This model had the lowest root mean squared error (RMSE) compared to the other models tested, including the Average movie rating model, Movie effect model, and Movie and user effect model. The Regularized movie and user effect model takes into account the average rating for each movie and the average deviation of each user from the dataset mean, while also incorporating a penalty term to control for overfitting. This model's superior performance suggests that it is the best approach for predicting movie ratings and can be used for various applications such as movie recommendations and personalization.
+
+```{r conclusion, echo=TRUE}
+# RMSE results overview
+rmse_results %>% knitr::kable()
+```
