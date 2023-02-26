@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.zip
+capstone/ml-10M100K/movies.dat
+capstone/ml-10M100K/ratings.dat
+capstone/myProject/.DS_Store
+ml-10M100K/movies.dat
+ml-10M100K/ratings.dat

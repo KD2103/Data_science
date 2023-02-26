@@ -1,0 +1,51 @@
+---
+title: "Portfolio Optimal Ratio"
+author: "Dmitry Kuzmin"
+date: "2023-02-25"
+output:
+  pdf_document:
+    toc: true
+---
+
+# Introduction
+This project aims to explore machine learning techniques for portfolio optimization, with the goal of better understanding how these models can be used in the financial industry. 
+It is important to note that this project is for educational purposes only and should not be construed as financial advice.
+One of the biggest challenges in this project was finding high-quality data for analysis. For instance, using bitcoin data from as early as 2011 would yield fantastic results
+and cause all models to be maximally embedded in bitcoin. To address this issue, we chose to analyze data from 2018, when bitcoin began to fall after reaching its peak at 20,000.
+I would have liked to take the analysis up to 2023, but unfortunately, we could not find good, free real estate data that included data beyond 2020.
+Therefore, we had to choose a shorter time period, from 2018 to 2020. This small sample size resulted in lower accuracy,
+but it still provided valuable insights into the performance of machine learning models in this domain.
+
+# Data
+
+## Data Collection
+In this project, we use four different datasets to optimize a portfolio using machine learning techniques. 
+The datasets include monthly data for the S&P 500 index, real estate prices, Bitcoin prices, and gold prices. 
+The data for real estate prices was obtained from the Zillow Home Value Index dataset on Quandl, the data for the S&P 500, 
+Bitcoin prices, and gold prices were also obtained from Quandl.
+We chose the period from January 2018 to January 2020 because we were unable to find high-quality free real estate data beyond this period that was freely available. 
+We also avoided using Bitcoin data before 2018 to prevent our models from being biased by the fantastic performance of Bitcoin in its early years.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
