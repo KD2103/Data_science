@@ -22,7 +22,7 @@ start_date <- "2018-01-31"
 end_date <- "2020-01-31"
 
 # Download real estate data from Quandl
-Quandl.api_key("<Your API>")
+Quandl.api_key("VGCv2gy3z3mYMM7HVku7")
 real_estate_data <- Quandl("ZILLOW/C20210_ZHVIAH", start_date = start_date)
 
 # Set the Region column as the row names
@@ -83,7 +83,7 @@ merged_data <- na.omit(merged_data)
 
 # Standard deviation of numerical columns
 volatility <- sapply(merged_data[, 6:9], sd)
-volatility
+head(volatility)
 
 # View the merged data frame
 head(merged_data)
@@ -236,7 +236,6 @@ upper <- c(1, 1, 1, 1)
 
 # Run the genetic algorithm to find optimal weights
 ga_result <- ga(type = "real", fitness = fitness, lower = lower, upper = upper, popSize = 50, maxiter = 100)
-ga_result
 
 # Extract the optimal weights
 sp500_weight <- ga_result@solution[1]
